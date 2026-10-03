@@ -42,11 +42,14 @@ export function buildCardSvg(
   personA: Person,
   personB: Person,
   babySvgMarkup: string,
+  aiImageDataUrl?: string,
 ): string {
-  // Strip the outer width/height so it scales into our layout box.
-  const baby = babySvgMarkup
-    .replace(/width="[^"]*"/, 'width="520"')
-    .replace(/height="[^"]*"/, 'height="520"');
+  // Prefer the AI cartoon image when present; otherwise embed the local SVG.
+  const baby = aiImageDataUrl
+    ? `<image href="${aiImageDataUrl}" x="0" y="0" width="520" height="520" preserveAspectRatio="xMidYMid slice" clip-path="inset(0 round 28)"/>`
+    : babySvgMarkup
+        .replace(/width="[^"]*"/, 'width="520"')
+        .replace(/height="[^"]*"/, 'height="520"');
 
   const statRows = result.stats
     .map((s: FictionalStat, i: number) => {
@@ -111,6 +114,7 @@ export function buildCardSvg(
     personA.name,
   )} + ${esc(personB.name)}</text>
   <text x="540" y="1458" fill="#ff8a3d" font-size="26" font-weight="700" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif">Fictional parody — not a biological prediction.</text>
+  <text x="540" y="1490" fill="#6f6f83" font-size="20" text-anchor="middle" font-family="Inter,Segoe UI,Arial,sans-serif">Political Baby Generator — Totally Scientific™</text>
 </svg>`;
 }
 

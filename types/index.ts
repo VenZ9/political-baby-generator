@@ -52,25 +52,35 @@ export interface VisualTraits {
   expression: Expression;
 }
 
-/** A selectable public figure (mock dataset — swappable for a real DB later). */
+/** A selectable public figure. */
 export interface Person {
   id: string;
   name: string;
-  /** Short display role, e.g. "Head of State", "Senator". */
+  /** Short display role, e.g. "Prime Minister of India since 2014". */
   role: string;
-  /** Region / affiliation label for display only. */
-  region: string;
-  /** Two-letter monogram used by the generated avatar. */
+  /** Country / region label for display and filtering. */
+  country: string;
+  /**
+   * Local portrait path (e.g. "/portraits/narendra-modi.jpg"), served from
+   * /public. Optional so a missing image falls back to the monogram avatar.
+   */
+  image?: string;
+  /** Attribution for the portrait, if known (see public/portraits/CREDITS.md). */
+  imageCredit?: {
+    artist?: string;
+    licence?: string;
+    page?: string;
+  };
+  /** Two-letter monogram used as a graceful fallback avatar. */
   monogram: string;
-  /** Accent colour for the generated avatar + card. */
+  /** Accent colour for the avatar fallback + card. */
   accent: string;
   /**
    * Broad, stylized visual trait tags used ONLY to seed the fictional mixer.
-   * These are parody tags, not measurements of any real person.
+   * These are parody tags assigned deterministically from the id — they are
+   * NOT measurements, observations or inferences about any real person.
    */
   traits: VisualTraits;
-  /** A couple of light, non-sensitive display facts. */
-  facts: string[];
 }
 
 /** The full input to a generation run. */
@@ -96,6 +106,16 @@ export interface GenerationResult {
   /** Fictional "name suggestion". */
   babyName: string;
   createdAt: number;
+  /**
+   * Optional AI-generated cartoon image (a data URL), produced server-side by
+   * the OpenRouter route when an API key is configured. Absent => the local SVG
+   * renderer is used. Never contains a photorealistic depiction.
+   */
+  image?: {
+    dataUrl: string;
+    mediaType: string;
+    model: string;
+  };
 }
 
 export interface FictionalStat {

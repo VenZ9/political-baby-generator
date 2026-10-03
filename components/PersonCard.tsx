@@ -1,6 +1,7 @@
 "use client";
 
-import { monogramAvatar } from "@/lib/people";
+import { useState } from "react";
+import { monogramAvatar, personAvatar } from "@/lib/people";
 import type { Person } from "@/types";
 
 interface Props {
@@ -12,6 +13,10 @@ interface Props {
 }
 
 export default function PersonCard({ person, slot, onClear, onSwap, compact }: Props) {
+  // Graceful fallback: if the portrait file is missing, swap to the monogram.
+  const [imgFailed, setImgFailed] = useState(false);
+  const src = imgFailed ? monogramAvatar(person, 128) : personAvatar(person, 128);
+
   return (
     <article className={`person-card person-card--${slot.toLowerCase()} ${compact ? "is-compact" : ""}`}>
       <div className="person-card__glow" aria-hidden="true" />
@@ -47,23 +52,20 @@ export default function PersonCard({ person, slot, onClear, onSwap, compact }: P
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           className="person-card__avatar"
-          src={monogramAvatar(person, 128)}
-          alt={`${person.name} avatar`}
+          src={src}
+          alt={`${person.name} portrait`}
           width={72}
           height={72}
+          loading="lazy"
+          decoding="async"
+          onError={() => setImgFailed(true)}
         />
         <div className="person-card__meta">
           <h3 className="person-card__name">{person.name}</h3>
           <p className="person-card__role">{person.role}</p>
-          <p className="person-card__region">{person.region}</p>
+          <p className="person-card__region">{person.country}</p>
         </div>
       </div>
-
-      <ul className="person-card__facts">
-        {person.facts.map((f) => (
-          <li key={f}>{f}</li>
-        ))}
-      </ul>
     </article>
   );
 }

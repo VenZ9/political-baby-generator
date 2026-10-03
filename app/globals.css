@@ -290,6 +290,8 @@ button {
   border-radius: 20px;
   border: 1px solid var(--border-strong);
   flex: 0 0 auto;
+  object-fit: cover;
+  background: #14141c;
 }
 
 .person-card__meta {
@@ -952,6 +954,110 @@ button {
   padding-bottom: 8px;
 }
 
+/* --------------------------- country filter --------------------------- */
+
+.country-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.country-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.country-chip {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.18s var(--ease);
+}
+
+.country-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.country-chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ---------------------------- model picker ---------------------------- */
+
+.model-picker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.model-picker__label {
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.model-picker__select {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.model-picker__select option {
+  background: #16161f;
+  color: var(--text);
+}
+
+/* --------------------------- AI result image --------------------------- */
+
+.result__ai-image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: #14141c;
+}
+
+.result__fallback {
+  margin: 4px 0 0;
+  max-width: 34ch;
+  font-size: 0.74rem;
+  color: var(--warn);
+  text-align: center;
+}
+
 .picker-row {
   display: flex;
   align-items: center;
@@ -982,6 +1088,8 @@ button {
   height: 48px;
   border-radius: 14px;
   flex: 0 0 auto;
+  object-fit: cover;
+  background: #14141c;
 }
 
 .picker-row__meta {

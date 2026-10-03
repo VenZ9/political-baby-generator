@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { monogramAvatar, searchPeople } from "@/lib/people";
+import { getCountries, personAvatar, searchPeople } from "@/lib/people";
 import type { Person } from "@/types";
 
 interface Props {
@@ -14,9 +14,15 @@ interface Props {
 
 export default function PersonPicker({ open, slot, onClose, onSelect, excludeId }: Props) {
   const [query, setQuery] = useState("");
+  const [country, setCountry] = useState<string>("");
+
+  const countries = useMemo(() => getCountries(), []);
 
   useEffect(() => {
-    if (!open) setQuery("");
+    if (!open) {
+      setQuery("");
+      setCountry("");
+    }
   }, [open]);
 
   useEffect(() => {
@@ -32,7 +38,10 @@ export default function PersonPicker({ open, slot, onClose, onSelect, excludeId 
     };
   }, [open, onClose]);
 
-  const results = useMemo(() => searchPeople(query), [query]);
+  const results = useMemo(
+    () => searchPeople(query, { country: country || undefined }),
+    [query, country],
+  );
 
   if (!open) return null;
 
@@ -59,7 +68,7 @@ export default function PersonPicker({ open, slot, onClose, onSelect, excludeId 
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, role or region…"
+            placeholder="Search by name, role or country…"
             aria-label="Search public figures"
             autoFocus
           />
@@ -70,14 +79,45 @@ export default function PersonPicker({ open, slot, onClose, onSelect, excludeId 
           )}
         </div>
 
+        <div className="country-bar" role="group" aria-label="Filter by country">
+          <button
+            type="button"
+            className={`country-chip ${country === "" ? "is-active" : ""}`}
+            onClick={() => setCountry("")}
+            aria-pressed={country === ""}
+          >
+            All
+          </button>
+          {countries.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`country-chip ${country === c ? "is-active" : ""}`}
+              onClick={() => setCountry(country === c ? "" : c)}
+              aria-pressed={country === c}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
         <div className="sheet__list">
           {results.length === 0 ? (
             <div className="empty-state">
               <p className="empty-state__emoji" aria-hidden="true">🕵️</p>
-              <p className="empty-state__title">No figures match “{query}”</p>
-              <p className="empty-state__hint">Try a different name, role or region.</p>
-              <button type="button" className="btn btn--ghost" onClick={() => setQuery("")}>
-                Clear search
+              <p className="empty-state__title">
+                No figures match {query ? `“${query}”` : "this filter"}
+              </p>
+              <p className="empty-state__hint">Try a different name, role or country.</p>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => {
+                  setQuery("");
+                  setCountry("");
+                }}
+              >
+                Clear filters
               </button>
             </div>
           ) : (
@@ -95,11 +135,19 @@ export default function PersonPicker({ open, slot, onClose, onSelect, excludeId 
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={monogramAvatar(p, 96)} alt="" width={48} height={48} className="picker-row__avatar" />
+                  <img
+                    src={personAvatar(p, 96)}
+                    alt=""
+                    width={48}
+                    height={48}
+                    loading="lazy"
+                    decoding="async"
+                    className="picker-row__avatar"
+                  />
                   <span className="picker-row__meta">
                     <span className="picker-row__name">{p.name}</span>
                     <span className="picker-row__sub">
-                      {p.role} · {p.region}
+                      {p.role} · {p.country}
                     </span>
                   </span>
                   <span className="picker-row__cta">{disabled ? "In use" : "Select"}</span>

@@ -4,9 +4,9 @@ import type { Person } from "@/types";
 /**
  * People data access layer.
  *
- * Today this reads the local mock dataset. To move to a real public-figure
- * database later, make these functions async and fetch from your source —
- * every consumer already goes through this module.
+ * Today this reads the local curated dataset (real public figures). To move to
+ * a remote public-figure database later, make these functions async and fetch
+ * from your source — every consumer already goes through this module.
  */
 
 export function getAllPeople(): Person[] {
@@ -17,13 +17,41 @@ export function getPersonById(id: string): Person | undefined {
   return PEOPLE.find((p) => p.id === id);
 }
 
-/** Case-insensitive search across name, role and region. */
-export function searchPeople(query: string): Person[] {
+/** Distinct country labels, in insertion order. */
+export function getCountries(): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const p of PEOPLE) {
+    if (!seen.has(p.country)) {
+      seen.add(p.country);
+      out.push(p.country);
+    }
+  }
+  return out;
+}
+
+/** Case-insensitive search across name, role and country. */
+export function searchPeople(
+  query: string,
+  opts: { country?: string } = {},
+): Person[] {
   const q = query.trim().toLowerCase();
-  if (!q) return PEOPLE;
-  return PEOPLE.filter((p) =>
-    [p.name, p.role, p.region].some((field) => field.toLowerCase().includes(q)),
+  let list = PEOPLE;
+  if (opts.country) {
+    list = list.filter((p) => p.country === opts.country);
+  }
+  if (!q) return list;
+  return list.filter((p) =>
+    [p.name, p.role, p.country].some((field) => field.toLowerCase().includes(q)),
   );
+}
+
+/**
+ * A local portrait URL if the person has one, otherwise a deterministic
+ * monogram data URI. Never touches the network at runtime.
+ */
+export function personAvatar(person: Person, size = 96): string {
+  return person.image ?? monogramAvatar(person, size);
 }
 
 /** Deterministic monogram avatar as an inline SVG data URI (no network). */

@@ -17,9 +17,21 @@ import {
 } from "@/lib/generator";
 import { buildCardSvg, downloadBlob, slugify, svgToPngBlob } from "@/lib/exportCard";
 import { TRAIT_LABELS, TRAIT_KEYS, TRAIT_OPTIONS } from "@/data/traits";
+import { DEFAULT_MODEL, IMAGE_MODELS } from "@/data/models";
 import type { GenerationResult, Person, VisualTraits } from "@/types";
 
 const STORAGE_KEY = "pbg:last-generation:v1";
+
+/** User-facing notes when the AI image is unavailable and we fall back to SVG. */
+const FALLBACK_NOTES: Record<string, string> = {
+  "no-key":
+    "AI image generation is off (no OPENROUTER_API_KEY configured) — showing the built-in cartoon renderer.",
+  "rate-limit": "The image service is rate-limited right now — showing the built-in cartoon renderer.",
+  timeout: "The image service timed out — showing the built-in cartoon renderer.",
+  invalid: "The image service rejected the request — showing the built-in cartoon renderer.",
+  "provider-error": "The image service was unavailable — showing the built-in cartoon renderer.",
+  offline: "AI image generation is unavailable here — showing the built-in cartoon renderer.",
+};
 
 export default function HomePage() {
   const people = useMemo(() => getAllPeople(), []);
@@ -33,6 +45,8 @@ export default function HomePage() {
   const [toast, setToast] = useState<string | null>(null);
   const [pickerSlot, setPickerSlot] = useState<"A" | "B" | null>(null);
   const [busyExport, setBusyExport] = useState(false);
+  const [model, setModel] = useState<string>(DEFAULT_MODEL);
+  const [fallbackNote, setFallbackNote] = useState<string | null>(null);
 
   const resultRef = useRef<HTMLDivElement | null>(null);
   const babySvgRef = useRef<HTMLDivElement | null>(null);
@@ -84,31 +98,62 @@ export default function HomePage() {
   /* ---------------------------- actions ---------------------------- */
 
   const runGeneration = useCallback(
-    (seed?: number) => {
+    async (seed?: number) => {
       if (!personA || !personB) {
         setError("Pick two people first — the generator needs both.");
         return;
       }
       setError(null);
+      setFallbackNote(null);
       setGenerating(true);
       const useSeed = seed ?? randomSeed();
-      // Short, deliberate animation; the work itself is instant.
-      window.setTimeout(() => {
+
+      // Keep the short, deliberate animation while the request is in flight.
+      const started = Date.now();
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            aId: personA.id,
+            bId: personB.id,
+            seed: useSeed,
+            model,
+            overrides,
+          }),
+        });
+
+        if (!res.ok) throw new Error(`Generation failed (${res.status}).`);
+        const data = (await res.json()) as {
+          result: GenerationResult;
+          fallback?: string;
+        };
+
+        // Let the animation breathe for at least ~900ms.
+        const elapsed = Date.now() - started;
+        if (elapsed < 900) await new Promise((r) => setTimeout(r, 900 - elapsed));
+
+        setResult(data.result);
+        if (data.fallback) setFallbackNote(FALLBACK_NOTES[data.fallback] ?? FALLBACK_NOTES["provider-error"]);
+        window.setTimeout(
+          () => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+          80,
+        );
+      } catch {
+        // The API route is unreachable (e.g. a static export). Fall back to the
+        // fully local, deterministic generator so the flow never dead-ends.
         try {
           const res = generate({ personA, personB, overrides, seed: useSeed });
           setResult(res);
-          window.setTimeout(
-            () => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-            80,
-          );
+          setFallbackNote(FALLBACK_NOTES["offline"]);
         } catch {
           setError("Something went wrong generating the baby. Please try again.");
-        } finally {
-          setGenerating(false);
         }
-      }, 900);
+      } finally {
+        setGenerating(false);
+      }
     },
-    [personA, personB, overrides],
+    [personA, personB, overrides, model],
   );
 
   const handleRandomize = useCallback(() => {
@@ -138,9 +183,8 @@ export default function HomePage() {
     setBusyExport(true);
     try {
       const svgEl = babySvgRef.current?.querySelector("svg");
-      if (!svgEl) throw new Error("The baby avatar is not ready yet.");
-      const markup = new XMLSerializer().serializeToString(svgEl);
-      const card = buildCardSvg(result, personA, personB, markup);
+      const markup = svgEl ? new XMLSerializer().serializeToString(svgEl) : "";
+      const card = buildCardSvg(result, personA, personB, markup, result.image?.dataUrl);
       const blob = await svgToPngBlob(card, 1);
       downloadBlob(blob, `political-baby-${slugify(result.babyName)}.png`);
       setToast("📥 Result card downloaded");
@@ -197,8 +241,8 @@ export default function HomePage() {
           🧑‍🤝‍🧑 Pick Two Public Figures
         </h2>
         <p className="section-sub">
-          Choose any two from the sample roster. These are fictional archetype characters — no real
-          people are depicted.
+          Choose any two real public figures from the roster. Their portraits are real; the
+          generated baby is a fictional cartoon and is not a prediction of anything.
         </p>
 
         <div className="pair">
@@ -268,6 +312,23 @@ export default function HomePage() {
 
       {/* --------------------------- STEP 5 --------------------------- */}
       <section className="generate">
+        <div className="model-picker">
+          <label htmlFor="model-select" className="model-picker__label">
+            🎨 Image model
+          </label>
+          <select
+            id="model-select"
+            className="model-picker__select"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          >
+            {IMAGE_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <button
           type="button"
           className="btn btn--primary btn--generate"
@@ -298,11 +359,26 @@ export default function HomePage() {
             <div className="result__grid">
               <div className="result__avatar">
                 <div ref={babySvgRef} className="result__avatar-inner">
-                  <BabyAvatar traits={result.traits} seed={result.seed} tone={tone} size={320} />
+                  {result.image ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      className="result__ai-image"
+                      src={result.image.dataUrl}
+                      alt="AI-generated fictional cartoon baby avatar"
+                      width={320}
+                      height={320}
+                    />
+                  ) : (
+                    <BabyAvatar traits={result.traits} seed={result.seed} tone={tone} size={320} />
+                  )}
                 </div>
                 <p className="result__name">{result.babyName}</p>
                 <p className="result__headline">“{result.headline}”</p>
-                <p className="result__seed">Seed #{result.seed}</p>
+                <p className="result__seed">
+                  Seed #{result.seed}
+                  {result.image ? ` · AI cartoon (${result.image.model})` : " · local cartoon renderer"}
+                </p>
+                {fallbackNote && <p className="result__fallback">{fallbackNote}</p>}
               </div>
 
               <div className="result__side">
@@ -376,10 +452,11 @@ export default function HomePage() {
         </p>
         <p>Fictional parody — not a biological prediction.</p>
         <p className="foot__fine">
-          All avatars are stylized cartoons generated locally from broad visual traits. This app
-          does not infer ethnicity, race, health, intelligence, personality, sexuality or any
-          medical or genetic characteristic, and it is not a genetic, medical or facial-prediction
-          tool.
+          All avatars are stylized cartoons — either AI-generated from a strict cartoon prompt or
+          drawn locally from broad visual traits. This app does not infer ethnicity, race, health,
+          intelligence, personality, sexuality or any medical or genetic characteristic, and it is
+          not a genetic, medical or facial-prediction tool. Portraits of the selectable public
+          figures are sourced from Wikimedia Commons (see public/portraits/CREDITS.md).
         </p>
       </footer>
 
