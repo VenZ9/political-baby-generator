@@ -1,0 +1,227 @@
+import { CARTOON_TONES, DEFAULT_TRAITS, TRAIT_KEYS, TRAIT_OPTIONS } from "@/data/traits";
+import type {
+  FictionalStat,
+  GenerationInput,
+  GenerationResult,
+  Person,
+  VisualTraits,
+} from "@/types";
+
+/**
+ * Deterministic, seeded generation engine.
+ *
+ * Pipeline:
+ *   Person A traits + Person B traits + user overrides + seed
+ *     -> fictional trait combination
+ *     -> cartoon baby renderer (see components/BabyAvatar.tsx)
+ *
+ * Everything here is FICTIONAL PARODY. No trait models biology, genetics,
+ * ethnicity, health, intelligence, personality or any real characteristic.
+ */
+
+/** mulberry32 — small, fast, deterministic PRNG. */
+export function makeRng(seed: number): () => number {
+  let a = seed >>> 0;
+  return function rng() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function randomSeed(): number {
+  return Math.floor(Math.random() * 0xffffffff) >>> 0;
+}
+
+function pick<T>(rng: () => number, arr: readonly T[]): T {
+  return arr[Math.floor(rng() * arr.length) % arr.length];
+}
+
+/**
+ * Resolve the fictional trait set.
+ *
+ * For each trait we roll a die: inherit from A, inherit from B, blend the two
+ * (a "mix" — for colours this is a literal blend), or let chaos pick something
+ * entirely new. User overrides always win.
+ */
+export function resolveTraits(input: GenerationInput): {
+  traits: VisualTraits;
+  provenance: GenerationResult["provenance"];
+} {
+  const rng = makeRng(input.seed);
+  const { personA, personB, overrides } = input;
+  const traits = { ...DEFAULT_TRAITS };
+  const provenance = {} as GenerationResult["provenance"];
+
+  for (const key of TRAIT_KEYS) {
+    if (overrides[key] !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (traits as any)[key] = overrides[key];
+      provenance[key] = "user";
+      continue;
+    }
+
+    const roll = rng();
+    const a = personA.traits[key];
+    const b = personB.traits[key];
+
+    if (roll < 0.34) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (traits as any)[key] = a;
+      provenance[key] = "A";
+    } else if (roll < 0.68) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (traits as any)[key] = b;
+      provenance[key] = "B";
+    } else if (roll < 0.88) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (traits as any)[key] = rng() < 0.5 ? a : b;
+      provenance[key] = "mix";
+    } else {
+      // Chaos: a fresh fictional option, unrelated to either parent.
+      const options = TRAIT_OPTIONS_FOR(key);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (traits as any)[key] = pick(rng, options);
+      provenance[key] = "chaos";
+    }
+  }
+
+  return { traits, provenance };
+}
+
+function TRAIT_OPTIONS_FOR(key: keyof VisualTraits): string[] {
+  return TRAIT_OPTIONS[key].map((o) => o.value);
+}
+
+/** Pick a fixed, fictional cartoon tone from the seed. Never derived from people. */
+export function resolveTone(seed: number): (typeof CARTOON_TONES)[number] {
+  const rng = makeRng(seed ^ 0x9e3779b9);
+  return pick(rng, CARTOON_TONES);
+}
+
+const HEADLINES = [
+  "Sources confirm: this baby is fictional.",
+  "Polling shows 100% of respondents are cartoons.",
+  "Breaking: infant has opinions on infrastructure.",
+  "Exit poll: undecided, but very cute.",
+  "Coalition talks stall over nap time.",
+  "Press conference scheduled, then cancelled for a snack.",
+  "Approval rating rises after first giggle.",
+  "Manifesto leaked: more naps, fewer meetings.",
+  "Diplomatic incident narrowly avoided at the sandbox.",
+  "Historic handshake lasts four seconds, ends in tears.",
+];
+
+const FIRST_NAMES = [
+  "Bartholomew",
+  "Clementine",
+  "Percival",
+  "Juniper",
+  "Theodore",
+  "Magnolia",
+  "Augustus",
+  "Beatrix",
+  "Reginald",
+  "Winnifred",
+  "Cornelius",
+  "Ophelia",
+];
+
+const LAST_NAMES = [
+  "McBabbleton",
+  "Fitzgiggle",
+  "Waddlesworth",
+  "Pemberton",
+  "Snackworth",
+  "Bumblethorpe",
+  "Crumbleton",
+  "Napton",
+  "Giggleby",
+  "Podiums",
+];
+
+const STAT_BLURBS: Record<string, string[]> = {
+  politician: [
+    "Already has a favourite podium.",
+    "Can filibuster a bedtime story.",
+    "Knows three ways to cut a ribbon.",
+  ],
+  seriousness: [
+    "Maintains a very serious face for 4 seconds.",
+    "Has strong views on the deficit.",
+    "Once frowned at a balloon.",
+  ],
+  chaos: [
+    "Reorganised the toy cabinet without asking.",
+    "Has declared the high chair a sovereign state.",
+    "Threw a rattle with intent.",
+  ],
+  uncle: [
+    "Will tell you about his car.",
+    "Brings a slideshow to every gathering.",
+    "Knows a guy who knows a guy.",
+  ],
+  randomness: [
+    "Trait mix generated by a fair die.",
+    "Statistically speaking: a cartoon.",
+    "Numbers chosen by a very small committee.",
+  ],
+};
+
+function statValue(rng: () => number, min = 18, max = 99): number {
+  return Math.round(min + rng() * (max - min));
+}
+
+/** Build the humorous FICTIONAL report. These are entertainment stats only. */
+export function buildStats(seed: number): FictionalStat[] {
+  const rng = makeRng(seed ^ 0x85ebca6b);
+  const defs: { key: string; label: string; emoji: string }[] = [
+    { key: "politician", label: "Politician Energy", emoji: "🗳️" },
+    { key: "seriousness", label: "Seriousness", emoji: "😐" },
+    { key: "chaos", label: "Chaos", emoji: "😂" },
+    { key: "uncle", label: "Uncle-at-a-Wedding Energy", emoji: "🥸" },
+    { key: "randomness", label: "Randomness", emoji: "🎲" },
+  ];
+  return defs.map((d) => ({
+    ...d,
+    value: statValue(rng),
+    blurb: pick(rng, STAT_BLURBS[d.key]),
+  }));
+}
+
+export function generate(input: GenerationInput): GenerationResult {
+  const { traits, provenance } = resolveTraits(input);
+  const rng = makeRng(input.seed ^ 0xc2b2ae35);
+  const babyName = `${pick(rng, FIRST_NAMES)} ${pick(rng, LAST_NAMES)}`;
+  return {
+    seed: input.seed,
+    traits,
+    provenance,
+    stats: buildStats(input.seed),
+    headline: pick(rng, HEADLINES),
+    babyName,
+    createdAt: Date.now(),
+  };
+}
+
+/** A short, human-readable summary of where each trait came from. */
+export function provenanceLabel(p: GenerationResult["provenance"][keyof VisualTraits]): string {
+  switch (p) {
+    case "A":
+      return "from Person A";
+    case "B":
+      return "from Person B";
+    case "mix":
+      return "blended";
+    case "user":
+      return "your pick";
+    case "chaos":
+      return "chaos roll";
+  }
+}
+
+export function personLabel(person: Person): string {
+  return person.name;
+}
